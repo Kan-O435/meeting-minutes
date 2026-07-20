@@ -19,6 +19,11 @@ function onOpen() {
 
 function menu_startMeeting() {
   MeetingService.startMeeting();
+  try {
+    Sidebar.show();
+  } catch (err) {
+    console.error('サイドバー表示に失敗しました: ' + err);
+  }
 }
 
 function menu_generateMinutes() {
