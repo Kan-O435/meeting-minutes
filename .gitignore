@@ -1,0 +1,7 @@
+cat <<'EOF' > .gitignore
+node_modules/
+.env
+.env.*
+.DS_Store
+*.log
+EOF.clasp.json
