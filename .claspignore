@@ -1,0 +1,11 @@
+**/**
+!appsscript.json
+!Code.gs
+!MeetingService.gs
+!LlmService.gs
+!GeminiProvider.gs
+!PromptService.gs
+!PropertyService.gs
+!Sidebar.gs
+!Sidebar.html
+!Styles.html

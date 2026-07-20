@@ -1,8 +1,8 @@
 {
-  "name": "meeting",
+  "name": "meeting-minutes",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Googleスプレッドシート上で動作するAI議事録作成プロトタイプ",
+  "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
