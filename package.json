@@ -4,7 +4,7 @@
   "description": "Googleスプレッドシート上で動作するAI議事録作成プロトタイプ",
   "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
