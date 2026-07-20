@@ -137,9 +137,52 @@ var MeetingService = (function () {
     return isMeetingSheet_(sheet) ? sheet.getName() : null;
   }
 
-  // 実装は feature/llm-minutes-generation で追加する。
   function generateMinutes() {
-    SpreadsheetApp.getUi().alert('議事録生成機能は準備中です。');
+    var ui = SpreadsheetApp.getUi();
+    var sheet;
+    try {
+      sheet = requireActiveMeetingSheet_();
+    } catch (err) {
+      ui.alert(err.message);
+      return;
+    }
+
+    var transcript = sheet.getRange(CELL.TRANSCRIPT_VALUE).getValue();
+    if (!transcript || !String(transcript).trim()) {
+      ui.alert('文字起こし（B5）が空です。内容を入力してから実行してください。');
+      return;
+    }
+
+    if (!PropertyService.hasApiKey()) {
+      ui.alert('Gemini APIキーが設定されていません。「APIキーを設定」から登録してください。');
+      return;
+    }
+
+    var lock = LockService.getDocumentLock();
+    var gotLock = lock.tryLock(5000);
+    if (!gotLock) {
+      ui.alert('別の議事録生成処理が実行中です。しばらくしてから再実行してください。');
+      return;
+    }
+
+    try {
+      sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.GENERATING);
+      SpreadsheetApp.flush();
+
+      var result = LlmService.generateMinutes(String(transcript));
+
+      sheet.getRange(CELL.SUMMARY_VALUE).setValue(result.summary);
+      sheet.getRange(CELL.NEXT_ACTIONS_VALUE).setValue(result.nextActionsText);
+      sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.DONE);
+
+      SpreadsheetApp.getActiveSpreadsheet().toast('議事録を生成しました。', 'AI議事録', 5);
+    } catch (err) {
+      sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.ERROR);
+      console.error('議事録生成に失敗しました: ' + err);
+      ui.alert('議事録の生成に失敗しました。' + err.message);
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   // 実装は feature/finalize-meeting で追加する。
