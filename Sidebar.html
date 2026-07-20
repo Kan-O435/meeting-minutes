@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <h1>音声入力</h1>
+
+    <div class="field">
+      <label for="meetingName">会議名</label>
+      <input type="text" id="meetingName" readonly>
+    </div>
+
+    <div class="buttons">
+      <button id="startBtn" class="primary">音声入力開始</button>
+      <button id="stopBtn" class="secondary" disabled>音声入力停止</button>
+    </div>
+
+    <div id="statusLine" class="status">未使用のブラウザで確認中です…</div>
+
+    <div class="field">
+      <label>現在認識している文字</label>
+      <div id="interimText" class="interim"></div>
+    </div>
+
+    <div class="field">
+      <label for="finalText">確定済み文字（編集可能）</label>
+      <textarea id="finalText" placeholder="音声認識結果、または手動で入力してください"></textarea>
+    </div>
+
+    <button id="applyBtn" class="apply">シートへ反映</button>
+
+    <div class="note">
+      音声入力が利用できない場合は、この欄へ直接入力するか、OS標準の音声入力（Mac：音声入力／Windows：音声認識）を使ってB5セルへ直接入力してください。
+    </div>
+
+    <div id="errorArea" class="error"></div>
+
+    <script>
+      (function () {
+        var startBtn = document.getElementById('startBtn');
+        var stopBtn = document.getElementById('stopBtn');
+        var applyBtn = document.getElementById('applyBtn');
+        var statusLine = document.getElementById('statusLine');
+        var interimText = document.getElementById('interimText');
+        var finalText = document.getElementById('finalText');
+        var errorArea = document.getElementById('errorArea');
+        var meetingNameInput = document.getElementById('meetingName');
+
+        var recognition = null;
+        var manualStop = true;
+        var confirmedText = '';
+
+        function showError(message) {
+          errorArea.textContent = message;
+        }
+
+        function clearError() {
+          errorArea.textContent = '';
+        }
+
+        function setStatus(text, recording) {
+          statusLine.textContent = text;
+          statusLine.className = recording ? 'status recording' : 'status';
+        }
+
+        function refreshMeetingName() {
+          google.script.run
+            .withSuccessHandler(function (name) {
+              meetingNameInput.value = name || '(会議シートではありません)';
+            })
+            .withFailureHandler(function () {
+              meetingNameInput.value = '(取得できませんでした)';
+            })
+            .sidebar_getActiveMeetingSheetName();
+        }
+
+        function getSpeechRecognitionCtor() {
+          return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+        }
+
+        function initRecognition() {
+          var Ctor = getSpeechRecognitionCtor();
+          if (!Ctor) {
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
+            setStatus('この環境では音声入力が利用できません。', false);
+            showError(
+              '音声認識APIがこのブラウザでは利用できません。下の欄へ直接入力するか、OS標準の音声入力をご利用ください。'
+            );
+            return;
+          }
+
+          recognition = new Ctor();
+          recognition.lang = 'ja-JP';
+          recognition.continuous = true;
+          recognition.interimResults = true;
+
+          recognition.onresult = function (event) {
+            var interim = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+              var result = event.results[i];
+              var transcript = result[0].transcript;
+              if (result.isFinal) {
+                confirmedText = confirmedText
+                  ? confirmedText + '\n' + transcript
+                  : transcript;
+                finalText.value = confirmedText;
+              } else {
+                interim += transcript;
+              }
+            }
+            interimText.textContent = interim;
+          };
+
+          recognition.onerror = function (event) {
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              showError('マイクの利用が許可されていません。ブラウザの権限設定を確認してください。');
+              manualStop = true;
+            } else if (event.error === 'no-speech') {
+              // 無音は継続動作のため無視する
+            } else {
+              showError('音声認識でエラーが発生しました（' + event.error + '）。');
+            }
+          };
+
+          recognition.onend = function () {
+            if (manualStop) {
+              setStatus('停止しました。', false);
+              startBtn.disabled = false;
+              stopBtn.disabled = true;
+              interimText.textContent = '';
+            } else {
+              // 意図せず認識が終了した場合は自動的に再開する
+              try {
+                recognition.start();
+              } catch (e) {
+                showError('音声認識の再開に失敗しました。もう一度開始してください。');
+                setStatus('停止しました。', false);
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+              }
+            }
+          };
+
+          startBtn.disabled = false;
+          setStatus('待機中です。', false);
+        }
+
+        startBtn.addEventListener('click', function () {
+          if (!recognition) {
+            return;
+          }
+          clearError();
+          manualStop = false;
+          try {
+            recognition.start();
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setStatus('音声を認識しています…', true);
+          } catch (e) {
+            showError('音声認識を開始できませんでした。');
+          }
+        });
+
+        stopBtn.addEventListener('click', function () {
+          if (!recognition) {
+            return;
+          }
+          manualStop = true;
+          recognition.stop();
+          stopBtn.disabled = true;
+        });
+
+        applyBtn.addEventListener('click', function () {
+          var text = finalText.value.trim();
+          if (!text) {
+            showError('シートへ反映する文字がありません。');
+            return;
+          }
+          clearError();
+          applyBtn.disabled = true;
+          google.script.run
+            .withSuccessHandler(function () {
+              applyBtn.disabled = false;
+              finalText.value = '';
+              confirmedText = '';
+              interimText.textContent = '';
+              setStatus('シートへ反映しました。', false);
+            })
+            .withFailureHandler(function (err) {
+              applyBtn.disabled = false;
+              showError('シートへの反映に失敗しました：' + (err && err.message ? err.message : err));
+            })
+            .sidebar_appendTranscript(text);
+        });
+
+        refreshMeetingName();
+        initRecognition();
+      })();
+    </script>
+  </body>
+</html>
