@@ -137,32 +137,24 @@ var MeetingService = (function () {
     return isMeetingSheet_(sheet) ? sheet.getName() : null;
   }
 
-  function generateMinutes() {
-    var ui = SpreadsheetApp.getUi();
-    var sheet;
-    try {
-      sheet = requireActiveMeetingSheet_();
-    } catch (err) {
-      ui.alert(err.message);
-      return;
-    }
-
+  /**
+   * 議事録生成の中核処理。UIへの確認・通知は呼び出し元（menu_generateMinutes用のgenerateMinutes、
+   * および会議終了時のendMeeting）がそれぞれの文脈に応じて行う。
+   * 戻り値のstatus: 'empty' | 'no-key' | 'locked' | 'success' | 'error'
+   */
+  function generateMinutesCore_(sheet) {
     var transcript = sheet.getRange(CELL.TRANSCRIPT_VALUE).getValue();
     if (!transcript || !String(transcript).trim()) {
-      ui.alert('文字起こし（B5）が空です。内容を入力してから実行してください。');
-      return;
+      return { status: 'empty' };
     }
 
     if (!PropertyService.hasApiKey()) {
-      ui.alert('Gemini APIキーが設定されていません。「APIキーを設定」から登録してください。');
-      return;
+      return { status: 'no-key' };
     }
 
     var lock = LockService.getDocumentLock();
-    var gotLock = lock.tryLock(5000);
-    if (!gotLock) {
-      ui.alert('別の議事録生成処理が実行中です。しばらくしてから再実行してください。');
-      return;
+    if (!lock.tryLock(5000)) {
+      return { status: 'locked' };
     }
 
     try {
@@ -175,24 +167,131 @@ var MeetingService = (function () {
       sheet.getRange(CELL.NEXT_ACTIONS_VALUE).setValue(result.nextActionsText);
       sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.DONE);
 
-      SpreadsheetApp.getActiveSpreadsheet().toast('議事録を生成しました。', 'AI議事録', 5);
+      return { status: 'success' };
     } catch (err) {
       sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.ERROR);
       console.error('議事録生成に失敗しました: ' + err);
-      ui.alert('議事録の生成に失敗しました。' + err.message);
+      return { status: 'error', message: err.message };
     } finally {
       lock.releaseLock();
     }
   }
 
-  // 実装は feature/finalize-meeting で追加する。
-  function endMeeting() {
-    SpreadsheetApp.getUi().alert('会議終了機能は準備中です。');
+  function generateMinutes() {
+    var ui = SpreadsheetApp.getUi();
+    var sheet;
+    try {
+      sheet = requireActiveMeetingSheet_();
+    } catch (err) {
+      ui.alert(err.message);
+      return;
+    }
+
+    var result = generateMinutesCore_(sheet);
+    switch (result.status) {
+      case 'empty':
+        ui.alert('文字起こし（B5）が空です。内容を入力してから実行してください。');
+        break;
+      case 'no-key':
+        ui.alert('Gemini APIキーが設定されていません。「APIキーを設定」から登録してください。');
+        break;
+      case 'locked':
+        ui.alert('別の議事録生成処理が実行中です。しばらくしてから再実行してください。');
+        break;
+      case 'error':
+        ui.alert('議事録の生成に失敗しました。' + result.message);
+        break;
+      case 'success':
+        SpreadsheetApp.getActiveSpreadsheet().toast('議事録を生成しました。', 'AI議事録', 5);
+        break;
+    }
   }
 
-  // 実装は feature/finalize-meeting で追加する。
+  function endMeeting() {
+    var ui = SpreadsheetApp.getUi();
+    var sheet;
+    try {
+      sheet = requireActiveMeetingSheet_();
+    } catch (err) {
+      ui.alert(err.message);
+      return;
+    }
+
+    var endCell = sheet.getRange(CELL.END_VALUE);
+    var existingEnd = endCell.getValue();
+    if (existingEnd) {
+      var response = ui.alert(
+        '終了日時の上書き確認',
+        '終了日時はすでに記録されています（' + existingEnd + '）。上書きして終了処理を再実行しますか？',
+        ui.ButtonSet.YES_NO
+      );
+      if (response !== ui.Button.YES) {
+        return;
+      }
+    }
+
+    endCell.setValue(new Date());
+
+    var transcript = sheet.getRange(CELL.TRANSCRIPT_VALUE).getValue();
+    if (!transcript || !String(transcript).trim()) {
+      sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.DONE);
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        '会議を終了しました（文字起こしが無いため議事録生成はスキップしました）。',
+        'AI議事録',
+        5
+      );
+      return;
+    }
+
+    var result = generateMinutesCore_(sheet);
+    switch (result.status) {
+      case 'no-key':
+        sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.DONE);
+        ui.alert('会議を終了しました。Gemini APIキーが未設定のため、議事録の自動生成はスキップされました。');
+        break;
+      case 'locked':
+        ui.alert('会議を終了しましたが、別の生成処理が実行中のため議事録生成はスキップされました。');
+        break;
+      case 'error':
+        ui.alert('会議を終了しましたが、議事録の生成に失敗しました。' + result.message);
+        break;
+      case 'success':
+        SpreadsheetApp.getActiveSpreadsheet().toast('会議を終了し、議事録を生成しました。', 'AI議事録', 5);
+        break;
+    }
+  }
+
   function clearMeetingSheet() {
-    SpreadsheetApp.getUi().alert('シートクリア機能は準備中です。');
+    var ui = SpreadsheetApp.getUi();
+    var sheet;
+    try {
+      sheet = requireActiveMeetingSheet_();
+    } catch (err) {
+      ui.alert(err.message);
+      return;
+    }
+
+    var response = ui.alert(
+      'シートのクリア確認',
+      '会議名・終了日時・文字起こし・要約・ネクストアクションをクリアします（開始日時は保持されます）。よろしいですか？',
+      ui.ButtonSet.YES_NO
+    );
+    if (response !== ui.Button.YES) {
+      return;
+    }
+
+    [
+      CELL.TITLE_VALUE,
+      CELL.END_VALUE,
+      CELL.TRANSCRIPT_VALUE,
+      CELL.SUMMARY_VALUE,
+      CELL.NEXT_ACTIONS_VALUE,
+    ].forEach(function (a1) {
+      sheet.getRange(a1).clearContent();
+    });
+    sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.INPUT);
+
+    SpreadsheetApp.getActiveSpreadsheet().toast('会議シートをクリアしました。', 'AI議事録', 5);
   }
 
   return {
