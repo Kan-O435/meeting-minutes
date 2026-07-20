@@ -4,12 +4,17 @@
   "description": "Googleスプレッドシート上で動作するAI議事録作成プロトタイプ",
   "private": true,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "sync:secrets": "node scripts/sync-secrets.mjs",
+    "setup": "node scripts/setup.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.6.0"
+  },
   "devDependencies": {
     "@google/clasp": "^3.3.0"
   }
