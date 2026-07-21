@@ -48,16 +48,36 @@ function menu_checkApiKeyStatus() {
 
 /**
  * サイドバー(Sidebar.html)からB5へ文字起こしを反映するために呼び出される。
+ * spreadsheetId/sheetNameは、音声入力ページを別タブ（Webアプリ）で開いた場合にのみ渡される。
+ * サイドバー埋め込み時は未指定となり、現在アクティブなスプレッドシート/シートを対象とする。
  */
-function sidebar_appendTranscript(text) {
-  return MeetingService.appendTranscript(text);
+function sidebar_appendTranscript(text, spreadsheetId, sheetName) {
+  return MeetingService.appendTranscript(text, spreadsheetId, sheetName);
 }
 
 /**
  * サイドバー表示中に、現在アクティブなシートが会議シートかどうかを確認するために使用する。
  */
-function sidebar_getActiveMeetingSheetName() {
-  return MeetingService.getActiveMeetingSheetNameForSidebar();
+function sidebar_getActiveMeetingSheetName(spreadsheetId, sheetName) {
+  return MeetingService.getActiveMeetingSheetNameForSidebar(spreadsheetId, sheetName);
+}
+
+/**
+ * サイドバー内のマイクがiframeの制約で使えない場合に、
+ * 同じ音声入力画面を別タブ（Webアプリ）で開くためのURLを取得する。
+ * 別タブはトップレベルページとして開かれるため、ブラウザのマイク許可が正常に機能する。
+ */
+function sidebar_getVoiceInputWebAppUrl() {
+  return MeetingService.getVoiceInputWebAppUrl();
+}
+
+/**
+ * 音声入力ページを別タブ（Webアプリ）として開いたときのエントリーポイント。
+ * ?ss=<スプレッドシートID>&sheet=<シート名> をクエリパラメータとして受け取る。
+ */
+function doGet(e) {
+  var params = (e && e.parameter) || {};
+  return Sidebar.renderStandalonePage(params.ss, params.sheet);
 }
 
 /**

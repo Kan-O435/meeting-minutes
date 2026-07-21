@@ -5,7 +5,20 @@
     <?!= include('Styles'); ?>
   </head>
   <body>
+    <script>
+      // Apps ScriptのHtmlServiceテンプレート変数を、クライアント側JSで扱いやすい形にしておく。
+      window.__MEETING_CONTEXT__ = {
+        standalone: <?!= standalone ? 'true' : 'false' ?>,
+        spreadsheetId: <?!= JSON.stringify(spreadsheetId || '') ?>,
+        sheetName: <?!= JSON.stringify(sheetName || '') ?>
+      };
+    </script>
+
     <h1>音声入力</h1>
+
+    <div id="standaloneNotice" class="note" style="display: none;">
+      このタブはブラウザのマイク許可を得るための独立ページです。音声入力の結果は元のスプレッドシートへ反映されます。作業が終わったらこのタブを閉じてください。
+    </div>
 
     <div class="field">
       <label for="meetingName">会議名</label>
@@ -31,6 +44,10 @@
 
     <button id="applyBtn" class="apply">シートへ反映</button>
 
+    <button id="openTabBtn" class="secondary" style="margin-bottom: 14px; width: 100%;">
+      新しいタブで音声入力を開く（マイクが使えない場合）
+    </button>
+
     <div class="note">
       音声入力が利用できない場合は、この欄へ直接入力するか、OS標準の音声入力（Mac：音声入力／Windows：音声認識）を使ってB5セルへ直接入力してください。
     </div>
@@ -39,18 +56,27 @@
 
     <script>
       (function () {
+        var context = window.__MEETING_CONTEXT__;
+
         var startBtn = document.getElementById('startBtn');
         var stopBtn = document.getElementById('stopBtn');
         var applyBtn = document.getElementById('applyBtn');
+        var openTabBtn = document.getElementById('openTabBtn');
         var statusLine = document.getElementById('statusLine');
         var interimText = document.getElementById('interimText');
         var finalText = document.getElementById('finalText');
         var errorArea = document.getElementById('errorArea');
         var meetingNameInput = document.getElementById('meetingName');
+        var standaloneNotice = document.getElementById('standaloneNotice');
 
         var recognition = null;
         var manualStop = true;
         var confirmedText = '';
+
+        if (context.standalone) {
+          standaloneNotice.style.display = 'block';
+          openTabBtn.style.display = 'none';
+        }
 
         function showError(message) {
           errorArea.textContent = message;
@@ -66,6 +92,14 @@
         }
 
         function refreshMeetingName() {
+          if (context.standalone && (!context.spreadsheetId || !context.sheetName)) {
+            meetingNameInput.value = '(会議シートの情報がありません)';
+            showError(
+              'このページは会議シートのメニューから「新しいタブで音声入力を開く」を押して開いてください。'
+            );
+            return;
+          }
+
           google.script.run
             .withSuccessHandler(function (name) {
               meetingNameInput.value = name || '(会議シートではありません)';
@@ -73,7 +107,7 @@
             .withFailureHandler(function () {
               meetingNameInput.value = '(取得できませんでした)';
             })
-            .sidebar_getActiveMeetingSheetName();
+            .sidebar_getActiveMeetingSheetName(context.spreadsheetId, context.sheetName);
         }
 
         function getSpeechRecognitionCtor() {
@@ -116,8 +150,15 @@
 
           recognition.onerror = function (event) {
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-              showError('マイクの利用が許可されていません。ブラウザの権限設定を確認してください。');
               manualStop = true;
+              if (context.standalone) {
+                showError('マイクの利用が許可されていません。ブラウザのアドレスバー付近のマイクアイコンから許可してください。');
+              } else {
+                showError(
+                  'マイクの利用が許可されていません。サイドバー（埋め込み画面）はマイク許可が下りない場合があります。' +
+                  '下の「新しいタブで音声入力を開く」ボタンをお試しください。'
+                );
+              }
             } else if (event.error === 'no-speech') {
               // 無音は継続動作のため無視する
             } else {
@@ -205,7 +246,22 @@
               applyBtn.disabled = false;
               showError('シートへの反映に失敗しました：' + (err && err.message ? err.message : err));
             })
-            .sidebar_appendTranscript(text);
+            .sidebar_appendTranscript(text, context.spreadsheetId, context.sheetName);
+        });
+
+        openTabBtn.addEventListener('click', function () {
+          clearError();
+          openTabBtn.disabled = true;
+          google.script.run
+            .withSuccessHandler(function (url) {
+              openTabBtn.disabled = false;
+              window.open(url, '_blank');
+            })
+            .withFailureHandler(function (err) {
+              openTabBtn.disabled = false;
+              showError('新しいタブを開けませんでした：' + (err && err.message ? err.message : err));
+            })
+            .sidebar_getVoiceInputWebAppUrl();
         });
 
         refreshMeetingName();

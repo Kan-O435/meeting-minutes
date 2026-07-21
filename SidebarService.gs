@@ -6,6 +6,10 @@
 var Sidebar = (function () {
   function show() {
     var template = HtmlService.createTemplateFromFile('Sidebar');
+    template.standalone = false;
+    template.spreadsheetId = '';
+    template.sheetName = '';
+
     var html = template
       .evaluate()
       .setTitle('AI議事録 音声入力')
@@ -13,8 +17,26 @@ var Sidebar = (function () {
     SpreadsheetApp.getUi().showSidebar(html);
   }
 
+  /**
+   * doGet(e)から呼び出される。サイドバー用と同じHTMLを、
+   * 別タブで開くトップレベルページとして描画する。
+   * トップレベルページとして開くことで、ブラウザのマイク許可がiframeの制約を受けずに機能する。
+   */
+  function renderStandalonePage(spreadsheetId, sheetName) {
+    var template = HtmlService.createTemplateFromFile('Sidebar');
+    template.standalone = true;
+    template.spreadsheetId = spreadsheetId || '';
+    template.sheetName = sheetName || '';
+
+    return template
+      .evaluate()
+      .setTitle('AI議事録 音声入力')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+
   return {
     show: show,
+    renderStandalonePage: renderStandalonePage,
   };
 })();
 

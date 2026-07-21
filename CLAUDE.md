@@ -13,7 +13,7 @@ Googleスプレッドシート上で動作する、AI会議議事録作成プロ
 ## ファイル構成
 
 ```text
-Code.gs                    エントリーポイント（onOpen、メニュー、サイドバー起動、秘密情報同期の受け口）
+Code.gs                    エントリーポイント（onOpen、メニュー、サイドバー起動、doGet、秘密情報同期の受け口）
 MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
@@ -63,6 +63,8 @@ GitHubへのpushやclasp pushが認証エラー等で失敗しても、同じ操
 - `.claspignore`により、`node_modules/`・`scripts/`・`.env`系・README/CLAUDE.md・package.json等はpush対象外とする。
 - `.gs`・`.html`・`appsscript.json`のみをApps Scriptへpushする。
 - push前に`npx clasp status`でpush対象を確認する。
+- `appsscript.json`（マニフェスト）を変更した`clasp push`は確認プロンプトが出て自動ではスキップされるため、`npx clasp push --force`を使う。
+- `Sidebar.html`・`SidebarService.gs`・`Code.gs`の`doGet`など、音声入力の「新しいタブで開く」機能（Webアプリ）に関わるファイルを変更した場合は、`clasp push`だけでは反映されない。既存のデプロイIDへ`npx clasp deploy -i <デプロイID>`を実行して再デプロイすること（`npx clasp deployments`でID確認）。
 
 ## APIキーに関する禁止事項
 
