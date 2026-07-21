@@ -9,17 +9,17 @@ Googleスプレッドシート上で動作する、AI会議議事録作成プロ
 - 会議開始時に、開いているスプレッドシート内の一番左へ会議ごとの新しいシート（`会議_YYYYMMDD_HHmmss`）を作成する。
 - B5へ入力された文字起こしをGemini APIへ送信し、B7へ要約、B9へネクストアクションを生成・保存する。
 - Chrome拡張機能や独自バックエンドは使用せず、Googleスプレッドシート・Apps Script・Gemini APIのみで完結させる。
+- 音声入力はOS標準機能（Mac音声入力／Windows音声認識）をB5へ直接使う方式のみを採用している。ブラウザ内蔵のWeb Speech APIをサイドバー/Webアプリ経由で使う実装は、Google Apps Scriptが配信するページではマイクへのアクセスがGoogle側の設定で許可されないことを実機検証済みのため、意図的に採用していない（再実装を試みないこと）。
 
 ## ファイル構成
 
 ```text
-Code.gs                    エントリーポイント（onOpen、メニュー、サイドバー起動、doGet、秘密情報同期の受け口）
+Code.gs                    エントリーポイント（onOpen、メニュー、秘密情報同期の受け口）
 MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
 PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
 PropertyService.gs         Gemini APIキーの保存・取得・状態確認（PropertiesService）
-SidebarService.gs / Sidebar.html / Styles.html  音声入力サイドバー
 appsscript.json            Apps Scriptマニフェスト
 scripts/sync-secrets.mjs   .env → Apps Scriptへの秘密情報同期
 scripts/setup.mjs          セットアップ一括実行（秘密情報同期 + clasp push）
@@ -64,7 +64,7 @@ GitHubへのpushやclasp pushが認証エラー等で失敗しても、同じ操
 - `.gs`・`.html`・`appsscript.json`のみをApps Scriptへpushする。
 - push前に`npx clasp status`でpush対象を確認する。
 - `appsscript.json`（マニフェスト）を変更した`clasp push`は確認プロンプトが出て自動ではスキップされるため、`npx clasp push --force`を使う。
-- `Sidebar.html`・`SidebarService.gs`・`Code.gs`の`doGet`など、音声入力の「新しいタブで開く」機能（Webアプリ）に関わるファイルを変更した場合は、`clasp push`だけでは反映されない。既存のデプロイIDへ`npx clasp deploy -i <デプロイID>`を実行して再デプロイすること（`npx clasp deployments`でID確認）。
+- このプロジェクトはWebアプリ（`doGet`）としてのデプロイを行っていない。`appsscript.json`に`webapp`設定を追加しない（音声入力用に一度試したが、上記の理由で不採用・削除済み）。
 
 ## APIキーに関する禁止事項
 
@@ -102,7 +102,7 @@ rm -rf
 
 ## 日本語UI
 
-利用者向けのメッセージ（メニュー項目、ダイアログ、トースト、サイドバーの文言、エラーメッセージ）はすべて日本語にする。内部エラーログ（`console.error`）も日本語で構わないが、APIキーの値は含めない。
+利用者向けのメッセージ（メニュー項目、ダイアログ、トースト、エラーメッセージ）はすべて日本語にする。内部エラーログ（`console.error`）も日本語で構わないが、APIキーの値は含めない。
 
 ## README更新ルール
 

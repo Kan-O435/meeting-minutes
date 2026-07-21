@@ -66,28 +66,14 @@ var MeetingService = (function () {
     return !!sheet && sheet.getName().indexOf(SHEET_NAME_PREFIX) === 0;
   }
 
-  /**
-   * spreadsheetId/sheetNameが指定されていればそのシートを、
-   * 指定がなければ現在アクティブなスプレッドシート/シートを返す。
-   * spreadsheetIdは、音声入力ページを別タブ（Webアプリ）で開いた場合にのみ渡される。
-   */
-  function resolveSheet_(spreadsheetId, sheetName) {
-    var ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
-    return sheetName ? ss.getSheetByName(sheetName) : ss.getActiveSheet();
-  }
-
-  function resolveMeetingSheet_(spreadsheetId, sheetName) {
-    var sheet = resolveSheet_(spreadsheetId, sheetName);
+  function requireActiveMeetingSheet_() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     if (!isMeetingSheet_(sheet)) {
       throw new Error(
-        '対象のシートが見つからないか、会議シートではありません。「会議を開始」で作成した会議シート上で実行してください。'
+        '現在のシートは会議シートではありません。「会議を開始」で作成した会議シート上で実行してください。'
       );
     }
     return sheet;
-  }
-
-  function requireActiveMeetingSheet_() {
-    return resolveMeetingSheet_(null, null);
   }
 
   function layoutMeetingSheet_(sheet, meetingName, startDate) {
@@ -135,41 +121,6 @@ var MeetingService = (function () {
 
     ss.toast('会議シート「' + sheetName + '」を作成しました。', 'AI議事録', 5);
     return sheetName;
-  }
-
-  function appendTranscript(text, spreadsheetId, sheetName) {
-    var sheet = resolveMeetingSheet_(spreadsheetId, sheetName);
-    var range = sheet.getRange(CELL.TRANSCRIPT_VALUE);
-    var current = range.getValue();
-    var next = current ? current + '\n' + text : text;
-    range.setValue(next);
-    return next;
-  }
-
-  function getActiveMeetingSheetNameForSidebar(spreadsheetId, sheetName) {
-    var sheet = resolveSheet_(spreadsheetId, sheetName);
-    return isMeetingSheet_(sheet) ? sheet.getName() : null;
-  }
-
-  /**
-   * 音声入力ページを別タブ（Webアプリ）で開くためのURLを組み立てる。
-   * サイドバー（埋め込みiframe）ではマイク許可がブラウザの制約で下りないことがあるため、
-   * トップレベルページとして開ける入り口を用意する。
-   */
-  function getVoiceInputWebAppUrl() {
-    var sheet = requireActiveMeetingSheet_();
-    var baseUrl = ScriptApp.getService().getUrl();
-    if (!baseUrl) {
-      throw new Error(
-        'Webアプリとしてデプロイされていません。「npx clasp deploy」でWebアプリを公開してから再度お試しください。'
-      );
-    }
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    return (
-      baseUrl +
-      '?ss=' + encodeURIComponent(ss.getId()) +
-      '&sheet=' + encodeURIComponent(sheet.getName())
-    );
   }
 
   /**
@@ -331,9 +282,6 @@ var MeetingService = (function () {
 
   return {
     startMeeting: startMeeting,
-    appendTranscript: appendTranscript,
-    getActiveMeetingSheetNameForSidebar: getActiveMeetingSheetNameForSidebar,
-    getVoiceInputWebAppUrl: getVoiceInputWebAppUrl,
     generateMinutes: generateMinutes,
     endMeeting: endMeeting,
     clearMeetingSheet: clearMeetingSheet,
