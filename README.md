@@ -170,7 +170,7 @@ LlmService.gs              LLM Providerの呼び出し制御・レスポンス�
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
 PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
 PropertyService.gs         Gemini APIキーの保存・取得・状態確認（PropertiesService）
-Sidebar.gs                 音声入力サイドバーの表示
+SidebarService.gs          音声入力サイドバーの表示
 Sidebar.html / Styles.html 音声入力サイドバーのUIとWeb Speech APIロジック
 appsscript.json            Apps Scriptマニフェスト
 scripts/sync-secrets.mjs   .env → Apps Script への秘密情報同期スクリプト
