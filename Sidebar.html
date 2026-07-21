@@ -125,14 +125,29 @@
             }
           };
 
+          recognition.onstart = function () {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setStatus('音声を認識しています…', true);
+          };
+
           recognition.onend = function () {
             if (manualStop) {
               setStatus('停止しました。', false);
               startBtn.disabled = false;
               stopBtn.disabled = true;
               interimText.textContent = '';
-            } else {
-              // 意図せず認識が終了した場合は自動的に再開する
+              return;
+            }
+
+            // 意図せず認識が終了した場合は自動的に再開する。
+            // onend直後に同期でstart()を呼ぶとInvalidStateErrorになることがあるため、
+            // 少し間を置いてから再開する。
+            setStatus('再接続しています…', true);
+            setTimeout(function () {
+              if (manualStop) {
+                return;
+              }
               try {
                 recognition.start();
               } catch (e) {
@@ -141,7 +156,7 @@
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
               }
-            }
+            }, 300);
           };
 
           startBtn.disabled = false;
@@ -156,9 +171,6 @@
           manualStop = false;
           try {
             recognition.start();
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            setStatus('音声を認識しています…', true);
           } catch (e) {
             showError('音声認識を開始できませんでした。');
           }
