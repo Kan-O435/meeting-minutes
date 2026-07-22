@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test",
     "sync:secrets": "node scripts/sync-secrets.mjs",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "voice-input": "node scripts/serve-voice-input.mjs"
   },
   "keywords": [],
   "author": "",
