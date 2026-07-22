@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI議事録 音声入力</title>
+    <style>
+      body {
+        font-family: 'Google Sans', Roboto, Arial, sans-serif;
+        font-size: 14px;
+        color: #202124;
+        margin: 0;
+        padding: 20px;
+        max-width: 480px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 12px 0 4px;
+      }
+
+      p.lead {
+        color: #5f6368;
+        font-size: 13px;
+        margin-top: 0;
+      }
+
+      details {
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 16px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .field {
+        margin: 10px 0;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #5f6368;
+        font-size: 12px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 7px 8px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .buttons {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      button {
+        flex: 1;
+        padding: 10px 12px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: #1a73e8;
+        color: #fff;
+      }
+
+      button.primary:disabled {
+        background: #a8c7fa;
+        cursor: not-allowed;
+      }
+
+      button.secondary {
+        background: #f1f3f4;
+        color: #202124;
+      }
+
+      button.secondary:disabled {
+        color: #9aa0a6;
+        cursor: not-allowed;
+      }
+
+      button.apply {
+        width: 100%;
+        background: #188038;
+        color: #fff;
+        margin-bottom: 16px;
+      }
+
+      button.apply:disabled {
+        background: #a8dab5;
+        cursor: not-allowed;
+      }
+
+      button.save {
+        width: 100%;
+        background: #1a73e8;
+        color: #fff;
+        margin-top: 6px;
+      }
+
+      .interim {
+        min-height: 22px;
+        padding: 8px 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        color: #80868b;
+        font-style: italic;
+        margin-bottom: 16px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 180px;
+        padding: 8px 10px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        font-size: 13px;
+        resize: vertical;
+        white-space: pre-wrap;
+      }
+
+      .status {
+        font-size: 13px;
+        color: #5f6368;
+        margin-bottom: 16px;
+      }
+
+      .status.recording::before {
+        content: "● ";
+        color: #d93025;
+      }
+
+      .error {
+        min-height: 18px;
+        color: #d93025;
+        font-size: 13px;
+        white-space: pre-wrap;
+        margin-top: 4px;
+      }
+
+      .success {
+        min-height: 18px;
+        color: #188038;
+        font-size: 13px;
+        white-space: pre-wrap;
+        margin-top: 4px;
+      }
+
+      .note {
+        font-size: 12px;
+        color: #80868b;
+        line-height: 1.6;
+      }
+
+      .target {
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 12px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AI議事録 音声入力</h1>
+    <p class="lead">
+      このページは、Google Apps Scriptのサイドバー内ではマイク許可が得られないため、
+      GitHub Pages（Google以外のドメイン）に独立して用意した音声入力用ページです。
+    </p>
+
+    <details id="settingsPanel">
+      <summary>設定（初回のみ）</summary>
+      <div class="field">
+        <label for="webAppUrlInput">Apps Script WebアプリのURL</label>
+        <input type="text" id="webAppUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="field">
+        <label for="tokenInput">音声入力トークン</label>
+        <input type="text" id="tokenInput" placeholder="スプレッドシートの「音声入力トークンを表示」で取得">
+      </div>
+      <button class="save" id="saveSettingsBtn">設定を保存</button>
+      <p class="note">
+        値はこのブラウザの localStorage にのみ保存されます（サーバーには送信されません）。
+        次回以降、このページを開いたときは自動的に読み込まれます。
+      </p>
+    </details>
+
+    <div id="targetInfo" class="target"></div>
+
+    <div class="buttons">
+      <button id="startBtn" class="primary">音声入力開始</button>
+      <button id="stopBtn" class="secondary" disabled>音声入力停止</button>
+    </div>
+
+    <div id="statusLine" class="status">未使用のブラウザで確認中です…</div>
+
+    <div class="field">
+      <label>現在認識している文字</label>
+      <div id="interimText" class="interim"></div>
+    </div>
+
+    <div class="field">
+      <label for="finalText">確定済み文字（編集可能）</label>
+      <textarea id="finalText" placeholder="音声認識結果、または手動で入力してください"></textarea>
+    </div>
+
+    <button id="applyBtn" class="apply">シートへ反映</button>
+
+    <div id="errorArea" class="error"></div>
+    <div id="successArea" class="success"></div>
+
+    <p class="note">
+      対象のスプレッドシート・シートは、スプレッドシート側の「AI議事録」→「音声入力ページを開くリンクを表示」から開いた場合のみ自動設定されます。
+      直接このページを開いた場合は、URLの末尾に <code>?ss=スプレッドシートID&amp;sheet=シート名</code> を付けてアクセスしてください。
+    </p>
+
+    <script>
+      (function () {
+        var settingsPanel = document.getElementById('settingsPanel');
+        var webAppUrlInput = document.getElementById('webAppUrlInput');
+        var tokenInput = document.getElementById('tokenInput');
+        var saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        var targetInfo = document.getElementById('targetInfo');
+
+        var startBtn = document.getElementById('startBtn');
+        var stopBtn = document.getElementById('stopBtn');
+        var applyBtn = document.getElementById('applyBtn');
+        var statusLine = document.getElementById('statusLine');
+        var interimText = document.getElementById('interimText');
+        var finalText = document.getElementById('finalText');
+        var errorArea = document.getElementById('errorArea');
+        var successArea = document.getElementById('successArea');
+
+        var STORAGE_KEY = 'aiMinutesVoiceInputSettings';
+        var recognition = null;
+        var manualStop = true;
+        var confirmedText = '';
+
+        function loadSettings() {
+          try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+          } catch (e) {
+            return {};
+          }
+        }
+
+        function saveSettings(settings) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        }
+
+        var settings = loadSettings();
+
+        var params = new URLSearchParams(window.location.search);
+        var ssParam = params.get('ss');
+        var sheetParam = params.get('sheet');
+        if (ssParam) {
+          settings.ss = ssParam;
+        }
+        if (sheetParam) {
+          settings.sheet = sheetParam;
+        }
+        saveSettings(settings);
+
+        webAppUrlInput.value = settings.webAppUrl || '';
+        tokenInput.value = settings.token || '';
+
+        if (settings.ss && settings.sheet) {
+          targetInfo.textContent = '反映先シート: ' + settings.sheet;
+        } else {
+          targetInfo.textContent = '反映先シートが未設定です。スプレッドシート側の「音声入力ページを開くリンクを表示」から開き直してください。';
+        }
+
+        if (!settings.webAppUrl || !settings.token) {
+          settingsPanel.setAttribute('open', 'open');
+        }
+
+        saveSettingsBtn.addEventListener('click', function () {
+          settings.webAppUrl = webAppUrlInput.value.trim();
+          settings.token = tokenInput.value.trim();
+          saveSettings(settings);
+          successArea.textContent = '設定を保存しました。';
+          errorArea.textContent = '';
+        });
+
+        function showError(message) {
+          errorArea.textContent = message;
+          successArea.textContent = '';
+        }
+
+        function clearError() {
+          errorArea.textContent = '';
+        }
+
+        function setStatus(text, recording) {
+          statusLine.textContent = text;
+          statusLine.className = recording ? 'status recording' : 'status';
+        }
+
+        function getSpeechRecognitionCtor() {
+          return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+        }
+
+        function initRecognition() {
+          var Ctor = getSpeechRecognitionCtor();
+          if (!Ctor) {
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
+            setStatus('この環境では音声入力が利用できません。', false);
+            showError('音声認識APIがこのブラウザでは利用できません。下の欄へ直接入力してください。');
+            return;
+          }
+
+          recognition = new Ctor();
+          recognition.lang = 'ja-JP';
+          recognition.continuous = true;
+          recognition.interimResults = true;
+
+          recognition.onresult = function (event) {
+            var interim = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+              var result = event.results[i];
+              var transcript = result[0].transcript;
+              if (result.isFinal) {
+                confirmedText = confirmedText ? confirmedText + '\n' + transcript : transcript;
+                finalText.value = confirmedText;
+              } else {
+                interim += transcript;
+              }
+            }
+            interimText.textContent = interim;
+          };
+
+          recognition.onerror = function (event) {
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              manualStop = true;
+              showError('マイクの利用が許可されていません。ブラウザのアドレスバー付近のマイクアイコンから許可してください。');
+            } else if (event.error === 'no-speech') {
+              // 無音は継続動作のため無視する
+            } else {
+              showError('音声認識でエラーが発生しました（' + event.error + '）。');
+            }
+          };
+
+          recognition.onstart = function () {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setStatus('音声を認識しています…', true);
+          };
+
+          recognition.onend = function () {
+            if (manualStop) {
+              setStatus('停止しました。', false);
+              startBtn.disabled = false;
+              stopBtn.disabled = true;
+              interimText.textContent = '';
+              return;
+            }
+
+            setStatus('再接続しています…', true);
+            setTimeout(function () {
+              if (manualStop) {
+                return;
+              }
+              try {
+                recognition.start();
+              } catch (e) {
+                showError('音声認識の再開に失敗しました。もう一度開始してください。');
+                setStatus('停止しました。', false);
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+              }
+            }, 300);
+          };
+
+          startBtn.disabled = false;
+          setStatus('待機中です。', false);
+        }
+
+        startBtn.addEventListener('click', function () {
+          if (!recognition) {
+            return;
+          }
+          clearError();
+          manualStop = false;
+          try {
+            recognition.start();
+          } catch (e) {
+            showError('音声認識を開始できませんでした。');
+          }
+        });
+
+        stopBtn.addEventListener('click', function () {
+          if (!recognition) {
+            return;
+          }
+          manualStop = true;
+          recognition.stop();
+          stopBtn.disabled = true;
+        });
+
+        applyBtn.addEventListener('click', function () {
+          var text = finalText.value.trim();
+          if (!text) {
+            showError('シートへ反映する文字がありません。');
+            return;
+          }
+          if (!settings.webAppUrl || !settings.token) {
+            showError('設定（WebアプリのURL・トークン）が未入力です。上の「設定」を開いて入力してください。');
+            return;
+          }
+          if (!settings.ss || !settings.sheet) {
+            showError('反映先シートが未設定です。スプレッドシート側の「音声入力ページを開くリンクを表示」から開き直してください。');
+            return;
+          }
+
+          clearError();
+          applyBtn.disabled = true;
+
+          fetch(settings.webAppUrl, {
+            method: 'POST',
+            // Content-Typeをtext/plainにすることで、CORSのpreflight(OPTIONS)を回避する。
+            // Apps ScriptのWebアプリはpreflightを処理できないため必須。
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              token: settings.token,
+              ss: settings.ss,
+              sheet: settings.sheet,
+              text: text,
+            }),
+          })
+            .then(function (res) {
+              return res.json();
+            })
+            .then(function (data) {
+              applyBtn.disabled = false;
+              if (data && data.ok) {
+                finalText.value = '';
+                confirmedText = '';
+                interimText.textContent = '';
+                successArea.textContent = 'シートへ反映しました。';
+                setStatus('シートへ反映しました。', false);
+              } else {
+                showError('シートへの反映に失敗しました：' + (data && data.error ? data.error : '不明なエラー'));
+              }
+            })
+            .catch(function (err) {
+              applyBtn.disabled = false;
+              showError('通信に失敗しました：' + err.message);
+            });
+        });
+
+        initRecognition();
+      })();
+    </script>
+  </body>
+</html>

@@ -10,7 +10,7 @@ Googleスプレッドシート + Google Apps Script + Gemini API で動作する
 - [セットアップ手順](#セットアップ手順)
 - [使い方](#使い方)
   - [会議を開始する](#会議を開始する)
-  - [音声入力（OS標準機能を使用）](#音声入力os標準機能を使用)
+  - [音声入力](#音声入力)
   - [議事録を生成する](#議事録を生成する)
   - [会議を終了する](#会議を終了する)
   - [シートをクリアする](#シートをクリアする)
@@ -45,12 +45,22 @@ cp .env.example .env
 
 # 4. セットアップ（秘密情報同期 + Apps Scriptへのpushをまとめて実行）
 npm run setup
+
+# 5. （音声入力ページを使う場合のみ・初回1回だけ）WebアプリとしてAPIをデプロイ
+npx clasp deploy --description "voice-input api"
+npx clasp deployments   # 発行された exec URL を確認
 ```
 
 `npm run setup`は内部で以下を順に実行します（各ステップは独立しており、片方が失敗してももう片方は実行されます）。
 
 1. `.env`のGemini APIキーをApps ScriptのPropertiesServiceへ同期（`npm run sync:secrets`と同じ処理）
 2. `npx clasp push`でApps Scriptへコードを反映
+
+手順5、およびGitHub Pagesの有効化（[音声入力](#音声入力)を参照）は、GitHub Pages版の音声入力ページを使う場合のみ必要です。コードを更新した後にWebアプリ側へも反映したい場合は、新しいデプロイを増やさず、既存のデプロイIDへ再デプロイしてください。
+
+```bash
+npx clasp deploy -i <デプロイID> --description "voice-input api"
+```
 
 秘密情報同期だけを個別に実行したい場合：
 
@@ -70,15 +80,45 @@ npm run sync:secrets
 - 同名のシートが既にある場合は、`_2`のように連番が付与されます。
 - シート作成後、B5（文字起こし欄）が選択された状態になります。この状態でそのまま文字起こしを入力してください。
 
-### 音声入力（OS標準機能を使用）
+### 音声入力
 
-このプロトタイプでは、ブラウザ内蔵の音声認識（Web Speech API）による音声入力は**採用していません**。理由は次のとおりです。
+Google Apps Scriptが配信するページ（サイドバー・Webアプリの`doGet`いずれも含む）は、Google側のサーバー設定によってマイクへのアクセスが許可されない構成になっています。これはmacOS/Chrome側のマイク権限設定とは無関係で、開発者側のコードやデプロイ方法を変えても回避できないプラットフォーム側の制約です（実機検証済み）。
 
-> Google Apps Scriptが配信するページ（サイドバー・Webアプリの`doGet`いずれも含む）は、Google側のサーバー設定によってマイクへのアクセスが許可されない構成になっています。これはmacOS/Chrome側のマイク権限設定とは無関係で、開発者側のコードやデプロイ方法を変えても回避できないプラットフォーム側の制約です。サイドバー・独立したWebアプリタブの両方で実際に検証し、いずれもブラウザの権限パネルに「マイク」の項目自体が現れないことを確認済みです。
+このため、音声入力（Web Speech API）を使いたい場合は、**Apps Script以外のドメイン（GitHub Pages）でホストした専用ページ**を使います。GitHub Pagesは`script.google.com`とは別ドメインなので、マイク許可が正常に機能します。GitHub Pages側は音声認識のみを行い、テキストをApps ScriptのWebアプリ（API）へ送信してB5へ書き込みます。
 
-そのため、音声入力にはOS標準の音声入力機能を使い、B5セルへ直接入力してください。B5は「会議を開始」直後に自動で選択状態になります。
+#### GitHub Pages版 音声入力の使い方（推奨・初回のみ設定が必要）
 
-#### Macの音声入力手順
+**初回セットアップ**
+
+1. GitHubリポジトリの Settings → Pages を開き、「Source」を `Deploy from a branch`、ブランチを `main`、フォルダを `/docs` に設定して保存する。数分後に `https://<ユーザー名>.github.io/<リポジトリ名>/` でページが公開される。
+2. Apps ScriptをWebアプリとしてデプロイする（未実施の場合）。
+   ```bash
+   npx clasp deploy --description "voice-input api"
+   npx clasp deployments   # 発行されたデプロイの exec URL を確認
+   ```
+   URLの形式: `https://script.google.com/macros/s/<デプロイID>/exec`
+3. スプレッドシートの「AI議事録」→「**音声入力ページのURLを設定**」で、手順1のGitHub PagesのURLを登録する。
+4. 「AI議事録」→「**音声入力トークンを表示**」でトークンをコピーする（初回は自動発行されます）。
+5. 手順1のGitHub PagesのURLを直接開き、「設定」を開いて「Apps ScriptWebアプリのURL」（手順2）と「音声入力トークン」（手順4）を貼り付けて保存する（この設定はブラウザのlocalStorageに保存され、次回以降は不要です）。
+
+**使うとき（毎回）**
+
+1. 会議シート上で「AI議事録」→「**音声入力ページを開くリンクを表示**」を選択し、表示されたリンクをコピーする（このリンクには対象のスプレッドシートID・シート名が含まれます）。
+2. コピーしたリンクを新しいタブで開く。
+3. 「音声入力開始」→話す→「音声入力停止」→内容を確認・編集し、「シートへ反映」を押す。
+4. 元のスプレッドシートのB5に反映されていることを確認する。
+
+**セキュリティ上の注意**
+
+- GitHub PagesのURLは（リポジトリの公開設定に関わらず）誰でもアクセスできる公開URLです。音声入力トークン・WebアプリのURL・対象シート情報が漏れると、第三者がB5へ任意のテキストを書き込める状態になります。リンクやトークンを他人と共有しないでください。
+- トークンの漏えいが疑われる場合は、「AI議事録」→「音声入力トークンを再発行」で無効化・再発行できます（再発行後は、GitHub Pages側の設定にも新しいトークンを貼り直してください）。
+- より強固にしたい場合は、GitHub Pagesの代わりに認証付きのホスティング（要ログインの静的ホスティング等）への変更を検討してください。
+
+#### OS標準の音声入力（GitHub Pagesを使わない場合の代替）
+
+GitHub Pagesを設定しない場合でも、OS標準の音声入力でB5へ直接入力すれば同様に利用できます。B5は「会議を開始」直後に自動で選択状態になります。
+
+##### Macの音声入力手順
 
 1. あらかじめ「システム設定」→「キーボード」→「音声入力」を開き、音声入力を**オン**にする（オフのままだと`Fn`キーを押しても何も起動しません）。同じ画面でショートカットキー（既定は`Fn`キー2回連続押し）を確認・変更できます。
 2. B5セルを選択する。
@@ -86,7 +126,7 @@ npm run sync:secrets
 4. 話した内容がB5へ入力される。
 5. 完了したら再度ショートカットを押すか、Escキーで音声入力を終了する。
 
-#### Windowsの音声入力手順
+##### Windowsの音声入力手順
 
 1. B5セルを選択する。
 2. `Windowsキー + H`を押して、Windowsの音声入力を起動する。
@@ -168,8 +208,9 @@ MeetingService.gs          会議シートの作成・レイアウト・開始/�
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
 PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
-PropertyService.gs         Gemini APIキーの保存・取得・状態確認（PropertiesService）
-appsscript.json            Apps Scriptマニフェスト
+PropertyService.gs         Gemini APIキー・音声入力トークン等の保存・取得・状態確認（PropertiesService）
+appsscript.json            Apps Scriptマニフェスト（Webアプリ設定を含む）
+docs/index.html            GitHub Pagesで公開する音声入力ページ（Apps Scriptの外側でホスト）
 scripts/sync-secrets.mjs   .env → Apps Script への秘密情報同期スクリプト
 scripts/setup.mjs          セットアップ一括実行スクリプト（秘密情報同期 + clasp push）
 tests/                     Node.jsの組み込みテストランナー（node --test）によるユニットテスト
@@ -194,11 +235,13 @@ npm test
 - 会議シート作成・命名・連番回避の実動作
 - Gemini APIキー入力後の実際のAPI通信
 - 会議終了・シートクリアのUIダイアログ挙動
+- GitHub Pages版音声入力ページからのマイク入力・Web APIへの反映
 
 ## 既知の制限
 
 - Gemini APIの実通信・レスポンス品質は、実際のAPIキーを用いた動作確認が必要です（未確認）。
-- ブラウザ内蔵の音声認識（Web Speech API）は採用していません。Google Apps Scriptが配信するページ（サイドバー・Webアプリいずれも）はGoogle側の設定でマイクへのアクセスができないことを実機検証で確認済みです。音声入力は[OS標準の音声入力](#音声入力os標準機能を使用)を使ってください。
+- Google Apps Scriptが直接配信するページ（サイドバー・Webアプリの`doGet`いずれも）はGoogle側の設定でマイクへのアクセスができないことを実機検証済みです。音声入力を使う場合は[GitHub Pages版の音声入力ページ](#音声入力)を利用してください（OS標準の音声入力も引き続き利用できます）。
+- GitHub Pages版音声入力ページは、Webアプリのアクセス設定を`ANYONE_ANONYMOUS`にしているため、URL・トークン・対象シート情報が漏れると第三者がB5へ書き込める状態になります（[音声入力](#音声入力)のセキュリティ上の注意を参照）。
 - 以下はブラウザ上でのみ確認可能なため、実装・静的確認までとし、人間による最終確認が必要です。
   - スプレッドシートのカスタムメニュー表示
   - Googleアカウントの初回権限承認

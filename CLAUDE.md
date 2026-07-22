@@ -8,19 +8,20 @@ Googleスプレッドシート上で動作する、AI会議議事録作成プロ
 
 - 会議開始時に、開いているスプレッドシート内の一番左へ会議ごとの新しいシート（`会議_YYYYMMDD_HHmmss`）を作成する。
 - B5へ入力された文字起こしをGemini APIへ送信し、B7へ要約、B9へネクストアクションを生成・保存する。
-- Chrome拡張機能や独自バックエンドは使用せず、Googleスプレッドシート・Apps Script・Gemini APIのみで完結させる。
-- 音声入力はOS標準機能（Mac音声入力／Windows音声認識）をB5へ直接使う方式のみを採用している。ブラウザ内蔵のWeb Speech APIをサイドバー/Webアプリ経由で使う実装は、Google Apps Scriptが配信するページではマイクへのアクセスがGoogle側の設定で許可されないことを実機検証済みのため、意図的に採用していない（再実装を試みないこと）。
+- Google Apps Script・Gemini APIに加え、音声入力のみGitHub Pages（`docs/index.html`）を外部ホスティングとして利用する。Chrome拡張機能や独自サーバー（DB・常駐バックエンド等）は使用しない。
+- 音声入力（Web Speech API）は、Google Apps Scriptが直接配信するページ（サイドバー・Webアプリの`doGet`いずれも）ではマイクへのアクセスがGoogle側の設定で許可されないことを実機検証済み。そのため、音声認識自体はGitHub Pages上の`docs/index.html`（Apps Scriptとは別ドメイン）で行い、認識結果をApps ScriptのWebアプリ（`doPost`、トークン認証付き）へ送信してB5へ書き込む構成にしている。この制約により「サイドバー内で直接音声入力」は実現できないため、再実装を試みないこと。
 
 ## ファイル構成
 
 ```text
-Code.gs                    エントリーポイント（onOpen、メニュー、秘密情報同期の受け口）
-MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア
+Code.gs                    エントリーポイント（onOpen、メニュー、doPost API、秘密情報同期の受け口）
+MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア/リモート追記
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
 PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
-PropertyService.gs         Gemini APIキーの保存・取得・状態確認（PropertiesService）
-appsscript.json            Apps Scriptマニフェスト
+PropertyService.gs         Gemini APIキー・音声入力ページURL・音声入力トークンの保存/取得/確認（PropertiesService）
+appsscript.json            Apps Scriptマニフェスト（webapp設定を含む）
+docs/index.html            GitHub Pagesで公開する音声入力ページ（Apps Scriptとは別ドメイン。Web Speech API + fetchでdoPostへ送信）
 scripts/sync-secrets.mjs   .env → Apps Scriptへの秘密情報同期
 scripts/setup.mjs          セットアップ一括実行（秘密情報同期 + clasp push）
 tests/                     node --test によるユニットテスト（純粋関数のみを対象）
@@ -64,7 +65,8 @@ GitHubへのpushやclasp pushが認証エラー等で失敗しても、同じ操
 - `.gs`・`.html`・`appsscript.json`のみをApps Scriptへpushする。
 - push前に`npx clasp status`でpush対象を確認する。
 - `appsscript.json`（マニフェスト）を変更した`clasp push`は確認プロンプトが出て自動ではスキップされるため、`npx clasp push --force`を使う。
-- このプロジェクトはWebアプリ（`doGet`）としてのデプロイを行っていない。`appsscript.json`に`webapp`設定を追加しない（音声入力用に一度試したが、上記の理由で不採用・削除済み）。
+- `docs/index.html`（GitHub Pages）は`.claspignore`により除外されており、Apps Scriptへはpushされない。GitHubへのpush・GitHub Pagesの設定でのみ公開される。
+- `Code.gs`の`doPost`（音声入力API）や`MeetingService.gs`の`appendTranscriptRemote`など、Webアプリとして呼び出される関数を変更した場合は、`clasp push`だけでは既存デプロイに反映されない。既存デプロイIDへ`npx clasp deploy -i <デプロイID>`を実行して再デプロイすること（`npx clasp deployments`でID確認）。
 
 ## APIキーに関する禁止事項
 
@@ -78,6 +80,12 @@ GitHubへのpushやclasp pushが認証エラー等で失敗しても、同じ操
 - `.env`はローカル専用とし、絶対にGitへコミットしない（`.gitignore`で`.env`・`.env.*`を除外し、`.env.example`のみ許可している）。
 - `.env`はApps Script実行時に直接読み込めないため、`scripts/sync-secrets.mjs`がローカルで読み込み、`clasp run`経由でApps Script側の`remoteSetGeminiApiKey`を呼び出してPropertiesServiceへ保存する。
 - 自動同期が失敗する環境（clasp未ログイン、Apps Script API未有効化、権限未承認等）でも、スプレッドシート上の「APIキーを設定」メニューから手動登録できる状態を常に維持すること。
+
+## 音声入力トークンの扱い
+
+- 音声入力トークン（`VOICE_INPUT_TOKEN`）は、GitHub Pages側の設定欄へ利用者自身が貼り付ける必要があるため、Gemini APIキーとは異なり、意図的にコピー用ダイアログで表示する（`PropertyService.showVoiceInputToken` / `reissueVoiceInputToken`）。これは仕様であり、バグではない。
+- とはいえログへは出力しない。`console.error`等にトークンの値を書き出さないこと。
+- Webアプリのアクセス設定が`ANYONE_ANONYMOUS`のため、トークンはこのAPIに対する唯一の認可手段になっている。`Code.gs`の`doPost`から`PropertyService.isValidVoiceInputToken`の検証を外さないこと。
 
 ## テスト方法
 

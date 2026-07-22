@@ -124,6 +124,29 @@ var MeetingService = (function () {
   }
 
   /**
+   * 外部の音声入力ページ（doPost経由）からB5へ文字起こしを追記する。
+   * 呼び出し元（Code.gsのdoPost）でトークン検証を済ませてから呼び出すこと。
+   * メニュー実行時と異なり「現在アクティブなシート」が存在しないため、
+   * spreadsheetId/sheetNameを明示的に受け取って対象シートを特定する。
+   */
+  function appendTranscriptRemote(spreadsheetId, sheetName, text) {
+    if (!spreadsheetId || !sheetName) {
+      throw new Error('spreadsheetIdまたはsheetNameが指定されていません。');
+    }
+    var ss = SpreadsheetApp.openById(spreadsheetId);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!isMeetingSheet_(sheet)) {
+      throw new Error('対象のシートが見つからないか、会議シートではありません。');
+    }
+
+    var range = sheet.getRange(CELL.TRANSCRIPT_VALUE);
+    var current = range.getValue();
+    var next = current ? current + '\n' + text : text;
+    range.setValue(next);
+    return next;
+  }
+
+  /**
    * 議事録生成の中核処理。UIへの確認・通知は呼び出し元（menu_generateMinutes用のgenerateMinutes、
    * および会議終了時のendMeeting）がそれぞれの文脈に応じて行う。
    * 戻り値のstatus: 'empty' | 'no-key' | 'locked' | 'success' | 'error'
@@ -282,6 +305,7 @@ var MeetingService = (function () {
 
   return {
     startMeeting: startMeeting,
+    appendTranscriptRemote: appendTranscriptRemote,
     generateMinutes: generateMinutes,
     endMeeting: endMeeting,
     clearMeetingSheet: clearMeetingSheet,
