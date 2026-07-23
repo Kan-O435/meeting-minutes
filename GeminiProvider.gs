@@ -3,7 +3,10 @@
  * モデル名はこのファイル内の1箇所にのみ定義する。
  */
 var GeminiProvider = (function () {
-  var MODEL_NAME = 'gemini-2.5-flash';
+  // "-latest"エイリアスは、Google側で新しいモデルがリリースされるたびに
+  // 自動的に最新のFlashモデルへ切り替わるため、個別のモデル名（例: gemini-2.5-flash）を
+  // 直接指定するより、廃止・世代交代による404エラーが発生しにくい。
+  var MODEL_NAME = 'gemini-flash-latest';
   var API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
   function buildEndpoint_(apiKey) {
