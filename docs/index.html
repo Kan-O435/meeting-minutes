@@ -195,10 +195,20 @@
         <label for="tokenInput">音声入力トークン</label>
         <input type="text" id="tokenInput" placeholder="スプレッドシートの「音声入力トークンを表示」で取得">
       </div>
+      <div class="field">
+        <label for="ssInput">反映先スプレッドシートID</label>
+        <input type="text" id="ssInput" placeholder="スプレッドシートのURLの /d/ と /edit の間の文字列">
+      </div>
+      <div class="field">
+        <label for="sheetInput">反映先シート名</label>
+        <input type="text" id="sheetInput" placeholder="例: 会議_20260722_103000">
+      </div>
       <button class="save" id="saveSettingsBtn">設定を保存</button>
       <p class="note">
         値はこのブラウザの localStorage にのみ保存されます（サーバーには送信されません）。
         次回以降、このページを開いたときは自動的に読み込まれます。
+        「音声入力ページを開くリンクを表示」から開いた場合は、スプレッドシートID・シート名は自動入力されます
+        （その場合、この2つは手入力不要です）。
       </p>
     </details>
 
@@ -236,6 +246,8 @@
         var settingsPanel = document.getElementById('settingsPanel');
         var webAppUrlInput = document.getElementById('webAppUrlInput');
         var tokenInput = document.getElementById('tokenInput');
+        var ssInput = document.getElementById('ssInput');
+        var sheetInput = document.getElementById('sheetInput');
         var saveSettingsBtn = document.getElementById('saveSettingsBtn');
         var targetInfo = document.getElementById('targetInfo');
 
@@ -280,21 +292,31 @@
 
         webAppUrlInput.value = settings.webAppUrl || '';
         tokenInput.value = settings.token || '';
+        ssInput.value = settings.ss || '';
+        sheetInput.value = settings.sheet || '';
 
-        if (settings.ss && settings.sheet) {
-          targetInfo.textContent = '反映先シート: ' + settings.sheet;
-        } else {
-          targetInfo.textContent = '反映先シートが未設定です。スプレッドシート側の「音声入力ページを開くリンクを表示」から開き直してください。';
+        function refreshTargetInfo() {
+          if (settings.ss && settings.sheet) {
+            targetInfo.textContent = '反映先シート: ' + settings.sheet;
+          } else {
+            targetInfo.textContent =
+              '反映先シートが未設定です。スプレッドシート側の「音声入力ページを開くリンクを表示」から開き直すか、' +
+              '下の「設定」からスプレッドシートID・シート名を直接入力してください。';
+          }
         }
+        refreshTargetInfo();
 
-        if (!settings.webAppUrl || !settings.token) {
+        if (!settings.webAppUrl || !settings.token || !settings.ss || !settings.sheet) {
           settingsPanel.setAttribute('open', 'open');
         }
 
         saveSettingsBtn.addEventListener('click', function () {
           settings.webAppUrl = webAppUrlInput.value.trim();
           settings.token = tokenInput.value.trim();
+          settings.ss = ssInput.value.trim();
+          settings.sheet = sheetInput.value.trim();
           saveSettings(settings);
+          refreshTargetInfo();
           successArea.textContent = '設定を保存しました。';
           errorArea.textContent = '';
         });
