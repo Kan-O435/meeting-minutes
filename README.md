@@ -6,6 +6,7 @@ Googleスプレッドシート + Google Apps Script + Gemini API で動作する
 
 - 日々の操作方法（メニュー一覧・つまずきポイント）は **[USAGE.md](./USAGE.md)** にまとめています。
 - 今後の発展方向・既知の課題（音声入力の高度化、長時間会議への対応など）は **[ROADMAP.md](./ROADMAP.md)** にまとめています。
+- デモ動画・紹介用に使えるサンプル文字起こしは **[SAMPLE_TRANSCRIPT.md](./SAMPLE_TRANSCRIPT.md)** にまとめています。
 
 ## シートのレイアウト
 
