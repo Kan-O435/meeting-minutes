@@ -34,7 +34,24 @@ var LlmService = (function () {
         return item.task.length > 0;
       });
 
-    return { summary: data.summary.trim(), nextActions: nextActions };
+    var rawFollowUp = data.followUp || {};
+    var followUp = {
+      timing: rawFollowUp.timing ? String(rawFollowUp.timing).trim() : '不明',
+      reason: rawFollowUp.reason ? String(rawFollowUp.reason).trim() : '',
+    };
+
+    var rawEngagement = data.engagement || {};
+    var engagement = {
+      level: rawEngagement.level ? String(rawEngagement.level).trim() : '不明',
+      reason: rawEngagement.reason ? String(rawEngagement.reason).trim() : '',
+    };
+
+    return {
+      summary: data.summary.trim(),
+      nextActions: nextActions,
+      followUp: followUp,
+      engagement: engagement,
+    };
   }
 
   /**
@@ -76,7 +93,30 @@ var LlmService = (function () {
   }
 
   /**
-   * 文字起こしを受け取り、要約とネクストアクション（表示用テキスト）を生成する。
+   * 追客タイミングを、シートへ書き込むための表示用テキストへ整形する。
+   */
+  function formatFollowUpText(followUp) {
+    var lines = ['タイミング：' + followUp.timing];
+    if (followUp.reason) {
+      lines.push('根拠：' + followUp.reason);
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * 先方企業の熱量・反応評価を、シートへ書き込むための表示用テキストへ整形する。
+   */
+  function formatEngagementText(engagement) {
+    var lines = ['評価：' + engagement.level];
+    if (engagement.reason) {
+      lines.push('根拠：' + engagement.reason);
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * 文字起こしを受け取り、要約・ネクストアクション・追客タイミング・
+   * 先方の熱量評価（いずれも表示用テキスト）を生成する。
    * Provider選択は現状Gemini固定。将来的にはPropertiesServiceの設定値等で切り替える。
    */
   function generateMinutes(transcript) {
@@ -94,6 +134,8 @@ var LlmService = (function () {
     return {
       summary: parsed.summary,
       nextActionsText: formatNextActionsText(parsed.nextActions),
+      followUpText: formatFollowUpText(parsed.followUp),
+      engagementText: formatEngagementText(parsed.engagement),
     };
   }
 
@@ -102,6 +144,8 @@ var LlmService = (function () {
     stripMarkdownCodeFence: stripMarkdownCodeFence,
     parseMinutesJson: parseMinutesJson,
     formatNextActionsText: formatNextActionsText,
+    formatFollowUpText: formatFollowUpText,
+    formatEngagementText: formatEngagementText,
   };
 })();
 
@@ -111,5 +155,7 @@ if (typeof module !== 'undefined' && module.exports) {
     stripMarkdownCodeFence: LlmService.stripMarkdownCodeFence,
     parseMinutesJson: LlmService.parseMinutesJson,
     formatNextActionsText: LlmService.formatNextActionsText,
+    formatFollowUpText: LlmService.formatFollowUpText,
+    formatEngagementText: LlmService.formatEngagementText,
   };
 }

@@ -7,7 +7,7 @@
 Googleスプレッドシート上で動作する、AI会議議事録作成プロトタイプ（Google Apps Script + Gemini API）。
 
 - 会議開始時に、開いているスプレッドシート内の一番左へ会議ごとの新しいシート（`会議_YYYYMMDD_HHmmss`）を作成する。
-- B5へ入力された文字起こしをGemini APIへ送信し、B7へ要約、B9へネクストアクションを生成・保存する。
+- B5へ入力された文字起こしをGemini APIへ送信し、B7へ要約、B9へネクストアクション、B13へ追客タイミング、B15へ先方の熱量・反応評価（営業商談の分析用途）を生成・保存する。担当者・期限・追客タイミング・熱量評価はいずれも、文字起こしから根拠が読み取れない場合は「未定」/「不明」とし、推測で埋めない。
 - Google Apps Script・Gemini APIに加え、音声入力のみApps Script外のオリジン（`docs/index.html`、通常は`npm run voice-input`でlocalhost配信。外部公開したい場合はGitHub Pages等でも可）を利用する。Chrome拡張機能や独自サーバー（DB・常駐バックエンド等）は使用しない。
 - 音声入力（Web Speech API）は、Google Apps Scriptが直接配信するページ（サイドバー・Webアプリの`doGet`いずれも）ではマイクへのアクセスがGoogle側の設定で許可されないことを実機検証済み。そのため、音声認識自体はApps Scriptとは別オリジンの`docs/index.html`で行い、認識結果をApps ScriptのWebアプリ（`doPost`、トークン認証付き）へ送信してB5へ書き込む構成にしている。`localhost`はブラウザが安全な文脈として扱うため、外部ホスティングは必須ではない。この制約により「サイドバー内で直接音声入力」は実現できないため、再実装を試みないこと。
 

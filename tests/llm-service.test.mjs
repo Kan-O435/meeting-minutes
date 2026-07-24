@@ -2,8 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadGasModule } from './load-gs.mjs';
 
-const { stripMarkdownCodeFence, parseMinutesJson, formatNextActionsText } =
-  loadGasModule('LlmService.gs');
+const {
+  stripMarkdownCodeFence,
+  parseMinutesJson,
+  formatNextActionsText,
+  formatFollowUpText,
+  formatEngagementText,
+} = loadGasModule('LlmService.gs');
 
 test('stripMarkdownCodeFence はコードブロックなしの文字列をそのまま返す', () => {
   const raw = '{"summary":"要約"}';
@@ -82,4 +87,41 @@ test('formatNextActionsText は番号付きで担当者・期限・補足を整�
       '   期限：未定',
     ].join('\n')
   );
+});
+
+test('parseMinutesJson はfollowUp/engagementが無い場合「不明」として扱う', () => {
+  const raw = JSON.stringify({ summary: '要約', nextActions: [] });
+  const result = parseMinutesJson(raw);
+  assert.deepEqual(result.followUp, { timing: '不明', reason: '' });
+  assert.deepEqual(result.engagement, { level: '不明', reason: '' });
+});
+
+test('parseMinutesJson はfollowUp/engagementの値をそのまま取り込む', () => {
+  const raw = JSON.stringify({
+    summary: '要約',
+    nextActions: [],
+    followUp: { timing: '1週間後', reason: '来週見積もりを送る約束をしたため' },
+    engagement: { level: '高い', reason: '具体的な質問が多かったため' },
+  });
+  const result = parseMinutesJson(raw);
+  assert.deepEqual(result.followUp, { timing: '1週間後', reason: '来週見積もりを送る約束をしたため' });
+  assert.deepEqual(result.engagement, { level: '高い', reason: '具体的な質問が多かったため' });
+});
+
+test('formatFollowUpText は根拠が無い場合タイミングのみ返す', () => {
+  assert.equal(formatFollowUpText({ timing: '不明', reason: '' }), 'タイミング：不明');
+});
+
+test('formatFollowUpText は根拠がある場合2行で返す', () => {
+  const text = formatFollowUpText({ timing: '1週間後', reason: '見積もり送付の約束をしたため' });
+  assert.equal(text, 'タイミング：1週間後\n根拠：見積もり送付の約束をしたため');
+});
+
+test('formatEngagementText は根拠が無い場合評価のみ返す', () => {
+  assert.equal(formatEngagementText({ level: '不明', reason: '' }), '評価：不明');
+});
+
+test('formatEngagementText は根拠がある場合2行で返す', () => {
+  const text = formatEngagementText({ level: '高い', reason: '前向きな質問が多かったため' });
+  assert.equal(text, '評価：高い\n根拠：前向きな質問が多かったため');
 });

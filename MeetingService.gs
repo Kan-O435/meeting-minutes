@@ -20,6 +20,10 @@ var MeetingService = (function () {
     NEXT_ACTIONS_VALUE: 'B9',
     STATUS_LABEL: 'A11',
     STATUS_VALUE: 'B11',
+    FOLLOW_UP_LABEL: 'A13',
+    FOLLOW_UP_VALUE: 'B13',
+    ENGAGEMENT_LABEL: 'A15',
+    ENGAGEMENT_VALUE: 'B15',
   };
 
   var STATUS = {
@@ -87,20 +91,30 @@ var MeetingService = (function () {
     sheet.getRange(CELL.NEXT_ACTIONS_LABEL).setValue('ネクストアクション');
     sheet.getRange(CELL.STATUS_LABEL).setValue('処理状態');
     sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.INPUT);
+    sheet.getRange(CELL.FOLLOW_UP_LABEL).setValue('追客タイミング');
+    sheet.getRange(CELL.ENGAGEMENT_LABEL).setValue('先方の熱量・反応評価');
 
-    sheet.getRange('A1:A11').setFontWeight('bold').setBackground('#f1f3f4');
+    sheet.getRange('A1:A15').setFontWeight('bold').setBackground('#f1f3f4');
     sheet.setColumnWidth(1, 120);
     sheet.setColumnWidth(2, 520);
 
-    [CELL.TRANSCRIPT_VALUE, CELL.SUMMARY_VALUE, CELL.NEXT_ACTIONS_VALUE].forEach(function (a1) {
+    [
+      CELL.TRANSCRIPT_VALUE,
+      CELL.SUMMARY_VALUE,
+      CELL.NEXT_ACTIONS_VALUE,
+      CELL.FOLLOW_UP_VALUE,
+      CELL.ENGAGEMENT_VALUE,
+    ].forEach(function (a1) {
       sheet.getRange(a1).setWrap(true).setVerticalAlignment('top');
     });
     sheet.setRowHeight(5, 160);
     sheet.setRowHeight(7, 160);
     sheet.setRowHeight(9, 160);
+    sheet.setRowHeight(13, 100);
+    sheet.setRowHeight(15, 100);
 
     sheet
-      .getRange('A1:B11')
+      .getRange('A1:B15')
       .setBorder(true, true, true, true, true, true, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
   }
 
@@ -174,6 +188,8 @@ var MeetingService = (function () {
 
       sheet.getRange(CELL.SUMMARY_VALUE).setValue(result.summary);
       sheet.getRange(CELL.NEXT_ACTIONS_VALUE).setValue(result.nextActionsText);
+      sheet.getRange(CELL.FOLLOW_UP_VALUE).setValue(result.followUpText);
+      sheet.getRange(CELL.ENGAGEMENT_VALUE).setValue(result.engagementText);
       sheet.getRange(CELL.STATUS_VALUE).setValue(STATUS.DONE);
 
       return { status: 'success' };
@@ -282,7 +298,7 @@ var MeetingService = (function () {
 
     var response = ui.alert(
       'シートのクリア確認',
-      '会議名・終了日時・文字起こし・要約・ネクストアクションをクリアします（開始日時は保持されます）。よろしいですか？',
+      '会議名・終了日時・文字起こし・要約・ネクストアクション・追客タイミング・熱量評価をクリアします（開始日時は保持されます）。よろしいですか？',
       ui.ButtonSet.YES_NO
     );
     if (response !== ui.Button.YES) {
@@ -295,6 +311,8 @@ var MeetingService = (function () {
       CELL.TRANSCRIPT_VALUE,
       CELL.SUMMARY_VALUE,
       CELL.NEXT_ACTIONS_VALUE,
+      CELL.FOLLOW_UP_VALUE,
+      CELL.ENGAGEMENT_VALUE,
     ].forEach(function (a1) {
       sheet.getRange(a1).clearContent();
     });
