@@ -6,6 +6,7 @@ var PropertyService = (function () {
   var PROPERTY_KEY = 'GEMINI_API_KEY';
   var VOICE_PAGE_URL_KEY = 'VOICE_INPUT_PAGE_URL';
   var VOICE_TOKEN_KEY = 'VOICE_INPUT_TOKEN';
+  var PROMPT_TEMPLATE_KEY = 'CUSTOM_PROMPT_TEMPLATE';
 
   function getScriptProperties_() {
     return PropertiesService.getScriptProperties();
@@ -209,6 +210,100 @@ var PropertyService = (function () {
     showCopyableDialog_('音声入力ページを開くリンク', link);
   }
 
+  // --- 要約プロンプトのカスタマイズ ---
+
+  function getCustomPromptTemplate() {
+    return getScriptProperties_().getProperty(PROMPT_TEMPLATE_KEY) || '';
+  }
+
+  function hasCustomPromptTemplate() {
+    return getCustomPromptTemplate().length > 0;
+  }
+
+  function saveCustomPromptTemplate(text) {
+    var value = (text || '').trim();
+    if (!value) {
+      getScriptProperties_().deleteProperty(PROMPT_TEMPLATE_KEY);
+      return { success: true, usingDefault: true };
+    }
+    getScriptProperties_().setProperty(PROMPT_TEMPLATE_KEY, value);
+    return { success: true, usingDefault: false };
+  }
+
+  /**
+   * カスタムプロンプトを削除し、デフォルトのテンプレート文字列を返す。
+   */
+  function resetCustomPromptTemplate() {
+    getScriptProperties_().deleteProperty(PROMPT_TEMPLATE_KEY);
+    return PromptService.getDefaultPromptTemplate();
+  }
+
+  /**
+   * 「要約プロンプトを編集」メニューから呼び出される。
+   * テキストエリア付きのモーダルダイアログを表示し、保存・デフォルトへ戻すを行える。
+   */
+  function showPromptEditor() {
+    var current = getCustomPromptTemplate() || PromptService.getDefaultPromptTemplate();
+    var isCustom = hasCustomPromptTemplate();
+    var escaped = current
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    var html = HtmlService.createHtmlOutput(
+      '<div style="font-family:Arial,sans-serif;font-size:13px;padding:4px;">' +
+        '<p style="margin:0 0 8px;color:#5f6368;line-height:1.5;">' +
+        '文字起こしを差し込みたい位置に <code>{{TRANSCRIPT}}</code> を1か所入れてください' +
+        '（入れ忘れても末尾に自動で追加されます）。<br>' +
+        '出力が <code>summary</code>・<code>nextActions</code>・<code>followUp</code>・' +
+        '<code>engagement</code> を含むJSON形式になるよう指示を残してください。' +
+        'この形式を崩すと、議事録生成が失敗するようになります。' +
+        '</p>' +
+        '<textarea id="promptText" style="width:100%;box-sizing:border-box;height:320px;' +
+        'font-size:12px;padding:6px;font-family:monospace;">' + escaped + '</textarea>' +
+        '<div style="margin-top:8px;">' +
+        '<button onclick="save()" style="margin-right:8px;padding:6px 14px;">保存</button>' +
+        '<button onclick="resetDefault()" style="padding:6px 14px;">デフォルトに戻す</button>' +
+        '<span id="msg" style="margin-left:10px;"></span>' +
+        '</div>' +
+        '<script>' +
+        'function setMsg(text, isError) {' +
+        '  var el = document.getElementById("msg");' +
+        '  el.textContent = text;' +
+        '  el.style.color = isError ? "#d93025" : "#188038";' +
+        '}' +
+        'function save() {' +
+        '  var text = document.getElementById("promptText").value;' +
+        '  google.script.run' +
+        '    .withSuccessHandler(function () { setMsg("保存しました。", false); })' +
+        '    .withFailureHandler(function (err) {' +
+        '      setMsg("保存に失敗しました：" + (err && err.message ? err.message : err), true);' +
+        '    })' +
+        '    .promptEditor_save(text);' +
+        '}' +
+        'function resetDefault() {' +
+        '  google.script.run' +
+        '    .withSuccessHandler(function (defaultText) {' +
+        '      document.getElementById("promptText").value = defaultText;' +
+        '      setMsg("デフォルトに戻しました。", false);' +
+        '    })' +
+        '    .withFailureHandler(function (err) {' +
+        '      setMsg("リセットに失敗しました：" + (err && err.message ? err.message : err), true);' +
+        '    })' +
+        '    .promptEditor_reset();' +
+        '}' +
+        '</script>' +
+        '</div>'
+    )
+      .setWidth(540)
+      .setHeight(460);
+
+    SpreadsheetApp.getUi().showModalDialog(
+      html,
+      '要約プロンプトを編集' + (isCustom ? '（カスタム設定中）' : '（デフォルト）')
+    );
+  }
+
   return {
     getApiKey: getApiKey,
     hasApiKey: hasApiKey,
@@ -222,5 +317,10 @@ var PropertyService = (function () {
     showVoiceInputToken: showVoiceInputToken,
     reissueVoiceInputToken: reissueVoiceInputToken,
     showVoiceInputLink: showVoiceInputLink,
+    getCustomPromptTemplate: getCustomPromptTemplate,
+    hasCustomPromptTemplate: hasCustomPromptTemplate,
+    saveCustomPromptTemplate: saveCustomPromptTemplate,
+    resetCustomPromptTemplate: resetCustomPromptTemplate,
+    showPromptEditor: showPromptEditor,
   };
 })();

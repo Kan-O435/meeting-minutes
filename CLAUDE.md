@@ -18,8 +18,8 @@ Code.gs                    エントリーポイント（onOpen、メニュー�
 MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア/リモート追記
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
-PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
-PropertyService.gs         Gemini APIキー・音声入力ページURL・音声入力トークンの保存/取得/確認（PropertiesService）
+PromptService.gs           要約・ネクストアクション抽出用プロンプト（デフォルト/カスタム）の生成
+PropertyService.gs         Gemini APIキー・音声入力ページURL・音声入力トークン・カスタムプロンプトの保存/取得/編集UI（PropertiesService）
 appsscript.json            Apps Scriptマニフェスト（webapp設定を含む）
 docs/index.html            音声入力ページ本体（Apps Scriptとは別オリジン。Web Speech API + fetchでdoPostへ送信）
 scripts/serve-voice-input.mjs  docs/index.htmlをlocalhostで配信する開発用サーバー（npm run voice-input、無依存）
@@ -87,6 +87,12 @@ GitHubへのpushやclasp pushが認証エラー等で失敗しても、同じ操
 - 音声入力トークン（`VOICE_INPUT_TOKEN`）は、音声入力ページ側の設定欄へ利用者自身が貼り付ける必要があるため、Gemini APIキーとは異なり、意図的にコピー用ダイアログで表示する（`PropertyService.showVoiceInputToken` / `reissueVoiceInputToken`）。これは仕様であり、バグではない。
 - とはいえログへは出力しない。`console.error`等にトークンの値を書き出さないこと。
 - Webアプリのアクセス設定が`ANYONE_ANONYMOUS`のため、トークンはこのAPIに対する唯一の認可手段になっている。`Code.gs`の`doPost`から`PropertyService.isValidVoiceInputToken`の検証を外さないこと。
+
+## 要約プロンプトのカスタマイズ
+
+- 利用者は「要約プロンプトを編集」メニューから、`PromptService.getDefaultPromptTemplate()`を上書きするカスタムプロンプトを`PropertiesService`（`CUSTOM_PROMPT_TEMPLATE`）へ保存できる（`PropertyService.showPromptEditor` / `saveCustomPromptTemplate` / `resetCustomPromptTemplate`）。
+- `LlmService.parseMinutesJson`は、Geminiの応答が`summary`・`nextActions`・`followUp`・`engagement`を含むJSONであることを前提にパースする。プロンプトのデフォルトテンプレート（`PromptService.getDefaultPromptTemplate`）を変更する場合は、この出力契約を壊さないこと。カスタムプロンプト側で契約が崩れるのは利用者の選択なので許容するが、デフォルト値は常に契約を満たすこと。
+- 文字起こしの差し込みには`{{TRANSCRIPT}}`プレースホルダーを使う（`PromptService.applyTranscript`、純粋関数としてテスト済み）。
 
 ## テスト方法
 

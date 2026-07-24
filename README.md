@@ -29,6 +29,7 @@ Googleスプレッドシート + Google Apps Script + Gemini API で動作する
   - [会議を終了する](#会議を終了する)
   - [シートをクリアする](#シートをクリアする)
 - [APIキーの管理](#apiキーの管理)
+- [要約プロンプトのカスタマイズ](#要約プロンプトのカスタマイズ)
 - [`.env`がApps Scriptから直接読めない理由と秘密情報同期の仕組み](#envがapps-scriptから直接読めない理由と秘密情報同期の仕組み)
 - [自動同期が利用できない場合の手動設定](#自動同期が利用できない場合の手動設定)
 - [ファイル構成](#ファイル構成)
@@ -213,6 +214,19 @@ Gemini APIキー：設定済み
 
 このプロトタイプは`PropertiesService.getScriptProperties()`（ScriptProperties）を使用しています。ScriptPropertiesはスクリプト単位で1つの値を共有するため、単一ユーザーでの利用や検証を想定したこのプロトタイプに適しています。
 
+## 要約プロンプトのカスタマイズ
+
+「AI議事録」→「**要約プロンプトを編集**」から、Geminiへ送るプロンプトを自由に書き換えられます。
+
+- 開くと、現在使用中のプロンプト（未設定ならデフォルトのプロンプト）がテキストエリアに表示されます。
+- 文字起こしを差し込みたい位置に `{{TRANSCRIPT}}` と入力してください（入れ忘れても末尾に自動追加されます）。
+- 「保存」を押すと、`PropertiesService`（スクリプトプロパティ）へ保存され、以降の「議事録を生成」からこのプロンプトが使われます。
+- 「デフォルトに戻す」を押すと、保存済みのカスタムプロンプトが削除され、組み込みのデフォルトプロンプトに戻ります。
+
+**注意**：Gemini側の出力は、`summary`・`nextActions`・`followUp`・`engagement`を含むJSON形式であることをアプリ側が前提にしています。この出力形式に関する指示をプロンプトから削除すると、B7〜B15への書き込みが解析エラーで失敗するようになります。要約の観点や文章のトーンなど、内容面の指示だけを変更することをおすすめします。
+
+プロンプトの値自体はAPIキーのような機密情報ではないため、他のメニュー項目と異なりダイアログに全文が表示される仕様です。
+
 複数のユーザーがそれぞれ別のAPIキーを使い分けたい場合は、`PropertiesService.getUserProperties()`（UserProperties、実行ユーザーごとに独立した値）への切り替えを検討してください。その場合、`PropertyService.gs`の`getScriptProperties_()`を`getUserProperties()`に置き換えるだけで対応できます。
 
 ## `.env`がApps Scriptから直接読めない理由と秘密情報同期の仕組み
@@ -246,8 +260,8 @@ Code.gs                    エントリーポイント（onOpen、メニュー�
 MeetingService.gs          会議シートの作成・レイアウト・開始/生成/終了/クリア
 LlmService.gs              LLM Providerの呼び出し制御・レスポンス解析・整形（Provider非依存部分）
 GeminiProvider.gs          Gemini APIとの通信・モデル設定・HTTPステータス処理
-PromptService.gs           要約・ネクストアクション抽出用プロンプトの生成
-PropertyService.gs         Gemini APIキー・音声入力トークン等の保存・取得・状態確認（PropertiesService）
+PromptService.gs           要約・ネクストアクション抽出用プロンプト（デフォルト/カスタム）の生成
+PropertyService.gs         Gemini APIキー・音声入力トークン・カスタムプロンプト等の保存・取得・編集UI（PropertiesService）
 appsscript.json            Apps Scriptマニフェスト（Webアプリ設定を含む）
 docs/index.html            音声入力ページ本体（Apps Scriptの外側でホスト。通常はローカルサーバーで配信）
 scripts/serve-voice-input.mjs  docs/index.htmlをlocalhostで配信する開発用サーバー（npm run voice-input）
@@ -267,7 +281,7 @@ tests/                     Node.jsの組み込みテストランナー（node --
 npm test
 ```
 
-`MeetingService.gs`・`LlmService.gs`・`scripts/sync-secrets.mjs`内の純粋関数（シート名生成、重複回避、Geminiレスポンス解析、Markdownコードブロック除去、ネクストアクション整形、環境変数検証）をNode.jsの組み込みテストランナーでテストしています。
+`MeetingService.gs`・`LlmService.gs`・`PromptService.gs`・`scripts/sync-secrets.mjs`内の純粋関数（シート名生成、重複回避、Geminiレスポンス解析、Markdownコードブロック除去、ネクストアクション/追客タイミング/熱量評価の整形、プロンプトテンプレートへの文字起こし差し込み、環境変数検証）をNode.jsの組み込みテストランナーでテストしています。
 
 以下は、実際のGoogleスプレッドシート・Apps Script環境が必要なため、ブラウザ上での手動確認が必要です（[人間による確認項目](#既知の制限)を参照）。
 

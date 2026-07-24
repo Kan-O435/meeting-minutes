@@ -1,8 +1,16 @@
 /**
  * Gemini（および将来の他LLM）へ渡す、要約・ネクストアクション抽出用プロンプトの生成を担当する。
+ * 利用者は「要約プロンプトを編集」メニューから、このデフォルトテンプレートを
+ * 上書きしてカスタムプロンプトを使うことができる（PropertyServiceに保存）。
  */
 var PromptService = (function () {
-  function buildMinutesPrompt(transcript) {
+  var TRANSCRIPT_PLACEHOLDER = '{{TRANSCRIPT}}';
+
+  /**
+   * 編集画面の初期表示・カスタムプロンプト未設定時の既定値として使われるテンプレート。
+   * 文字起こしを差し込む位置には TRANSCRIPT_PLACEHOLDER を使う。
+   */
+  function getDefaultPromptTemplate() {
     return [
       'あなたは優秀な会議アシスタント兼、営業商談の分析アシスタントです。',
       '以下の会議の文字起こしを読み、「要約」「ネクストアクション」「追客タイミング」',
@@ -49,12 +57,41 @@ var PromptService = (function () {
       '',
       '# 会議の文字起こし',
       '"""',
-      transcript,
+      TRANSCRIPT_PLACEHOLDER,
       '"""',
     ].join('\n');
   }
 
+  /**
+   * テンプレート内のプレースホルダーを文字起こしへ置き換える（純粋関数）。
+   * カスタムプロンプトにプレースホルダーが含まれない場合は、末尾へ文字起こしを追加する
+   * （うっかりプレースホルダーを消してしまっても、文字起こし自体は必ず送信されるようにするため）。
+   */
+  function applyTranscript(template, transcript) {
+    var text = template || '';
+    if (text.indexOf(TRANSCRIPT_PLACEHOLDER) === -1) {
+      return text + '\n\n# 会議の文字起こし\n"""\n' + transcript + '\n"""';
+    }
+    return text.split(TRANSCRIPT_PLACEHOLDER).join(transcript);
+  }
+
+  function buildMinutesPrompt(transcript) {
+    var template = PropertyService.getCustomPromptTemplate() || getDefaultPromptTemplate();
+    return applyTranscript(template, transcript);
+  }
+
   return {
     buildMinutesPrompt: buildMinutesPrompt,
+    getDefaultPromptTemplate: getDefaultPromptTemplate,
+    applyTranscript: applyTranscript,
+    TRANSCRIPT_PLACEHOLDER: TRANSCRIPT_PLACEHOLDER,
   };
 })();
+
+// Node環境（テスト実行時）向けに、純粋関数のみをエクスポートする。
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    getDefaultPromptTemplate: PromptService.getDefaultPromptTemplate,
+    applyTranscript: PromptService.applyTranscript,
+  };
+}

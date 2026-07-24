@@ -12,6 +12,7 @@ function onOpen() {
     .addSeparator()
     .addItem('APIキーを設定', 'menu_setApiKey')
     .addItem('APIキー設定状況を確認', 'menu_checkApiKeyStatus')
+    .addItem('要約プロンプトを編集', 'menu_editPrompt')
     .addSeparator()
     .addItem('現在の会議シートをクリア', 'menu_clearMeetingSheet')
     .addSeparator()
@@ -44,6 +45,22 @@ function menu_setApiKey() {
 
 function menu_checkApiKeyStatus() {
   PropertyService.showApiKeyStatus();
+}
+
+function menu_editPrompt() {
+  PropertyService.showPromptEditor();
+}
+
+/**
+ * 要約プロンプト編集ダイアログ（PropertyService.showPromptEditor）から
+ * google.script.run経由で呼び出される。
+ */
+function promptEditor_save(text) {
+  return PropertyService.saveCustomPromptTemplate(text);
+}
+
+function promptEditor_reset() {
+  return PropertyService.resetCustomPromptTemplate();
 }
 
 function menu_setVoiceInputPageUrl() {
